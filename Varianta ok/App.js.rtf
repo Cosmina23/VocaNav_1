@@ -1,0 +1,174 @@
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext, AuthProvider } from './AuthContext';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import Create from './components/Create'; // Importă Create.js
+import Home from './components/Home'; // Importă Home.js
+import LiveMap from './components/LiveMap';
+import SignUp from './components/SignUp';
+import back_img from './assets/back_main.jpg';
+
+const Stack = createStackNavigator();
+
+function AppScreen({navigation}) {
+  const { user } = useContext(AuthContext); 
+  const [isLogin, setIsLogin] = useState(true);
+  
+  const [message, setMessage] = useState("Aștept mesaje de la Raspberry Pi...");
+  const [numePrimit, setNumePrimit] = useState("");
+  const [codPrimit, setCodPrimit] = useState("");
+
+
+  useEffect(() => {
+    if (user) {
+      navigation.navigate("LiveMap"); // Redirecționează utilizatorul logat direct la Home
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // Creează o conexiune WebSocket cu serverul de pe Raspberry Pi
+    const ws = new WebSocket('ws://192.168.1.5:8765');  // Înlocuiește cu IP-ul Raspberry Pi
+    ws.onopen = () => {
+      console.log('Conexiune WebSocket deschisă');
+      ws.send('Salut, Raspberry Pi!');  // Trimite mesaj la Raspberry Pi
+    };
+
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      setMessage(data.message);  // Actualizează mesajul primit de la server
+
+      if(data.message.startsWith("Nume: ")){
+        setNumePrimit(data.message.replace("Nume: ", "").trim());
+      }else if(data.message.startsWith("Cod: ")){
+        setCodPrimit(data.message.replace("Cod: ", "").trim());
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.error('Eroare WebSocket', e);
+    };
+
+    ws.onclose = () => {
+      console.log('Conexiunea WebSocket a fost închisă');
+    };
+
+    // Curățăm la dezasamblarea componentelor
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, []);
+
+  return(
+    <View style={styles.container}>{/*container pt image / principal*/}
+      <ImageBackground 
+      source={back_img} style={styles.image}
+      />
+      <View style={styles.authContainer}>
+      {/*sterge textul*/}
+      <Text>{message}</Text> 
+      <View style={styles.toggleContainer}>
+        
+        <TouchableOpacity style={[styles.toggleButton, isLogin && styles.activeButton]} 
+          onPress={() => setIsLogin(true)
+        }>
+          <Text style={[styles.toggleText, isLogin && styles.activeText]}>Login Page</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={[styles.toggleButton, !isLogin && styles.activeButton]} 
+          onPress={() => setIsLogin(false)}
+        >
+          <Text style={[styles.toggleText, !isLogin && styles.activeText]}>SignUp Page</Text>
+        </TouchableOpacity>
+        
+        </View>
+        {user ? <LiveMap navigation={navigation} /> : (isLogin ? 
+        <Create navigation={navigation} /> :
+         <SignUp navigation={navigation} />
+         )}
+      </View>
+    </View>
+  )
+}
+
+
+
+export default function App() {
+  return (
+    <AuthProvider>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="AppScreen">
+        <Stack.Screen name="Home" component={Home}/>
+        <Stack.Screen name="AppScreen" component={AppScreen} options={{headerShown: false}}/>
+        <Stack.Screen name="SignUp" component={SignUp}/> 
+        <Stack.Screen name="Create" component={Create} />
+        <Stack.Screen name="LiveMap" component={LiveMap} 
+          options={{
+            headerStyle: { 
+              backgroundColor: 'white',
+              height: 30,
+              elevation: 0,
+              shadowOpacity: 0,
+            },
+            headerTitle: '',
+            headerBackTitleVisible: false,
+            headerTintColor: 'black',
+            headerLeft: () => null, 
+          }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+    </AuthProvider>
+  );
+}
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  authContainer:{
+    flex:1.5,
+    backgroundColor: '#fff',
+    borderTopRightRadius: 50,
+    padding: 20,
+    marginTop: -80,
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    paddingBottom: 80
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    borderWidth: 1.5,
+    borderColor: '#000',
+    borderRadius: 25,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    width: 200, // Ajustează dimensiunea după necesitate
+    height: 40, 
+  },
+  toggleButton: {
+    flex: 1, // Face ca butoanele să aibă dimensiuni egale
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20, // Pentru un efect mai rotunjit
+  },
+  image: {
+    width:'100%',
+    height:'74%'
+  },
+  activeText:{
+    color: '#000',
+  },
+  activeButton:{
+    backgroundColor: '#187bcd'
+  },
+  toggleText:{
+    fontWeight: 'bold',
+    fontSize: 25, 
+    color: '#000'
+  }
+});

@@ -1,0 +1,162 @@
+import React, { useState, useEffect, useContext } from "react";
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,TextInput } from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import * as Location from "expo-location";
+import { AuthContext } from "../AuthContext";
+import { useNavigation } from "@react-navigation/native";
+
+export default function LiveMap() {
+  const [location, setLocation] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [address, setAddress] = useState("");
+  const {user, logout} = useContext(AuthContext);
+  const navigation = useNavigation();
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setErrorMsg("Permisiunea pentru locație a fost refuzată");
+        return;
+      }
+
+      const updateLocation = async () => {
+        let loc = await Location.getCurrentPositionAsync({});
+        setLocation(loc.coords);
+      };
+
+      // Actualizare locație la fiecare 3 secunde
+      const interval = setInterval(updateLocation, 3000);
+      return () => clearInterval(interval);
+    })();
+  }, []);
+
+  if (!location) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  const handleLogout = async () => {
+    await logout(); // Execute logout from AuthContext
+    navigation.navigate('AppScreen'); // Navigate to AppScreen after logout
+};
+
+  return (
+    <View style={styles.container}>
+    {/* Header */}
+    <View style={styles.header}>
+      <Text style={styles.headerText}>MAP</Text>
+      <TouchableOpacity onPress={() => setMenuVisible(!menuVisible)}>
+        <Text style={styles.menuButton}>☰</Text>
+      </TouchableOpacity>
+    </View>
+    
+    {menuVisible && (
+      <View style={styles.dropdownMenu}>
+        <Text style={styles.dropdownText}>Utilizator: {user?.name}</Text>
+        <TouchableOpacity onPress={() => navigation.navigate("IstoricTrasee")}>
+          <Text style={styles.dropdownItem}>Istoric Trasee</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.dropdownItem}>Logout</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={()=> navigation.navigate('Home')}>
+          <Text style={styles.dropdownItem}>Home Page</Text>
+        </TouchableOpacity>
+      </View>
+    )}
+
+    {/* Harta */}
+    <MapView
+      style={styles.map}
+      initialRegion={{
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }}
+      showsUserLocation={true}
+    >
+      <Marker coordinate={location} title="Locația mea" />
+    </MapView>
+
+    {/* Input Adresă */}
+    <View style={styles.searchContainer}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Caută Adresa"
+        value={address}
+        onChangeText={setAddress}
+      />
+      <TouchableOpacity onPress={() => console.log("Adresă salvată:", address)}>
+        <Text style={styles.searchButton}>🔍</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#a6e1fa",
+    padding: 15,
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  menuButton: {
+    fontSize: 25,
+  },
+  dropdownMenu: {
+    position: "absolute",
+    top: 50,
+    right: 10,
+    backgroundColor: "white",
+    padding: 10,
+    borderRadius: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 10, 
+  },
+  dropdownText: {
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  dropdownItem: {
+    paddingVertical: 5,
+  },
+  map: {
+    flex: 1,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    backgroundColor: "#a6e1fa",
+    padding: 10,
+    alignItems: "center",
+  },
+  searchInput: {
+    flex: 1,
+    padding: 8,
+    backgroundColor: "white",
+    borderRadius: 5,
+  },
+  searchButton: {
+    fontSize: 20,
+    padding: 5,
+    marginLeft: 10,
+  },
+});
