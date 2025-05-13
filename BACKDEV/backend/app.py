@@ -122,3 +122,73 @@ if __name__ == "__main__" :
     #with app.app_context():
     #    db.create_all()  # Aceasta creeaza tabelele în baza de date
     app.run(host = '0.0.0.0', port=5000, debug = True)
+
+
+
+
+
+
+
+#salvare trasee in baza de date--------------------------------------
+class Route(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    ziua = db.Column(db.String(20), nullable = False) #ex: luni,marti,..
+    data = db.Column(db.Date, nullable = False)
+    ora = db.Column(db.Time, nullable = False)
+
+    locatie_start_lat = db.Column(db.Float, nullable=False)
+    locatie_start_lng = db.Column(db.Float, nullable=False)
+    locatie_end_lat = db.Column(db.Float, nullable=False)
+    locatie_end_lng = db.Column(db.Float, nullable=False)
+
+    locatie_start_nume = db.Column(db.String(255), nullable = False)
+    locatie_end_nume = db.Column(db.String(255), nullable = False)
+
+    opriri = db.Column(db.Text, nullable = True)
+
+    created_at = db.Column(db.DateTime, default = datetime.datetime.now)
+
+    def __init__(self, ziua, data, ora, locatie_start_lat, locatie_start_lng, locatie_end_lat, locatie_end_lng, locatie_start_nume, locatie_end_nume, opriri):
+        self.ziua = ziua 
+        self.data = data 
+        self.ora = ora 
+        self.locatie_start_lat = locatie_start_lat
+        self.locatie_start_lng = locatie_start_lng
+        self.locatie_end_lat = locatie_end_lat
+        self.locatie_end_lng = locatie_end_lng
+        self.locatie_start_nume = locatie_start_nume
+        self.locatie_end_nume = locatie_end_nume
+        self.opriri = opriri
+
+class RouteSchema(ma.Schema):
+    class Meta:
+        fields = (
+            'id', 'ziua', 'data', 'ora', 'locatie_start_lat', 'locatie_start_lng', 'locatie_end_lat', 'locatie_end_lng', 'locatie_start_nume', 'locatie_end_nume', 'opriri', 'created_at'  
+        )
+
+route_schema = RouteSchema()
+route_schema = RouteSchema(many=True)
+
+
+@app.route('/add_route',  methods=['POST'])
+def add_route():
+    data = request.json
+
+    route = Route(
+        ziua = data['ziua'],
+        data = datetime.datetime.strptime(data['data'], '%d.%m.%Y').date(),
+        ora = datetime.datetime.strptime(data['ora'], '%H:%M').time(),
+        locatie_start_lat = data['locatie_start']['lat'],
+        locatie_start_lng = data['locatie_start']['lng'],
+        locatie_end_lat = data['locatie_end']['lat'],
+        locatie_end_lng = data['locatie_end']['lng'],
+        locatie_start_nume = data['locatie_start_nume'],
+        locatie_end_nume = data['locatie_end_nume'],
+        opriri = str(data.get('opriri', []))
+    )
+
+    db.session.add(route)
+    db.session.commit()
+    return route_schema.jsonify(route)
+
+    
