@@ -118,15 +118,6 @@ def account_delete(id):
 
 
 
-if __name__ == "__main__" :
-    #with app.app_context():
-    #    db.create_all()  # Aceasta creeaza tabelele în baza de date
-    app.run(host = '0.0.0.0', port=5000, debug = True)
-
-
-
-
-
 
 
 #salvare trasee in baza de date--------------------------------------
@@ -167,28 +158,48 @@ class RouteSchema(ma.Schema):
         )
 
 route_schema = RouteSchema()
-route_schema = RouteSchema(many=True)
+routes_schema = RouteSchema(many=True)
 
 
 @app.route('/add_route',  methods=['POST'])
 def add_route():
-    data = request.json
+    try:
+        data = request.json
 
-    route = Route(
-        ziua = data['ziua'],
-        data = datetime.datetime.strptime(data['data'], '%d.%m.%Y').date(),
-        ora = datetime.datetime.strptime(data['ora'], '%H:%M').time(),
-        locatie_start_lat = data['locatie_start']['lat'],
-        locatie_start_lng = data['locatie_start']['lng'],
-        locatie_end_lat = data['locatie_end']['lat'],
-        locatie_end_lng = data['locatie_end']['lng'],
-        locatie_start_nume = data['locatie_start_nume'],
-        locatie_end_nume = data['locatie_end_nume'],
-        opriri = str(data.get('opriri', []))
-    )
-
-    db.session.add(route)
-    db.session.commit()
-    return route_schema.jsonify(route)
-
+        print(f'PRIMIT PE BACKEND:{data}')
     
+        route = Route(
+            ziua = data['ziua'],
+            data = datetime.datetime.strptime(data['data'], '%d.%m.%Y').date(),
+            ora = datetime.datetime.strptime(data['ora'], '%H:%M').time(),
+            locatie_start_lat = data['locatie_start']['lat'],
+            locatie_start_lng = data['locatie_start']['lng'],
+            locatie_end_lat = data['locatie_end']['lat'],
+            locatie_end_lng = data['locatie_end']['lng'],
+            locatie_start_nume = data['locatie_start_nume'],
+            locatie_end_nume = data['locatie_end_nume'],
+            opriri = str(data.get('opriri', []))
+        )
+
+        db.session.add(route)
+        db.session.commit()
+        return route_schema.jsonify(route)
+
+    except Exception as e:
+        print("Eroare salvare traseu:", e)
+        return jsonify({"error": str(e)}), 400
+    
+@app.route('/routes', methods=['GET'])
+def get_routes():
+    all_routes = Route.query.all()
+    return routes_schema.jsonify(all_routes)
+
+
+
+if __name__ == "__main__" :
+    #with app.app_context():
+    #    db.create_all()  # Aceasta creeaza tabelele în baza de date
+    app.run(host = '0.0.0.0', port=5000, debug = True)
+
+
+
