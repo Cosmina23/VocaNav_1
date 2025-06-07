@@ -60,7 +60,7 @@ def get_accounts():
 @app.route('/check_username', methods = ['POST'])
 def check_username():
     name = request.json['name']
-    exist_user = Authentification.query.filter_by(name=name).firt()
+    exist_user = Authentification.query.filter_by(name=name).first()
     if exist_user:
         return jsonify({"available": False})
     return jsonify({"available": True})
@@ -120,6 +120,7 @@ def account_delete(id):
 #salvare trasee in baza de date--------------------------------------
 class Route(db.Model):
     id = db.Column(db.Integer, primary_key = True)
+    nume_utilizator = db.Column(db.String(255), nullable=False)
     ziua = db.Column(db.String(20), nullable = False) #ex: luni,marti,..
     data = db.Column(db.Date, nullable = False)
     ora = db.Column(db.Time, nullable = False)
@@ -136,7 +137,7 @@ class Route(db.Model):
 
     created_at = db.Column(db.DateTime, default = datetime.datetime.now)
 
-    def __init__(self, ziua, data, ora, locatie_start_lat, locatie_start_lng, locatie_end_lat, locatie_end_lng, locatie_start_nume, locatie_end_nume, opriri):
+    def __init__(self, ziua, data, ora, locatie_start_lat, locatie_start_lng, locatie_end_lat, locatie_end_lng, locatie_start_nume, locatie_end_nume, opriri, nume_utilizator=None):
         self.ziua = ziua 
         self.data = data 
         self.ora = ora 
@@ -147,11 +148,12 @@ class Route(db.Model):
         self.locatie_start_nume = locatie_start_nume
         self.locatie_end_nume = locatie_end_nume
         self.opriri = opriri
+        self.nume_utilizator = nume_utilizator
 
 class RouteSchema(ma.Schema):
     class Meta:
         fields = (
-            'id', 'ziua', 'data', 'ora', 'locatie_start_lat', 'locatie_start_lng', 'locatie_end_lat', 'locatie_end_lng', 'locatie_start_nume', 'locatie_end_nume', 'opriri', 'created_at'  
+            'id', 'ziua', 'data', 'ora', 'locatie_start_lat', 'locatie_start_lng', 'locatie_end_lat', 'locatie_end_lng', 'locatie_start_nume', 'locatie_end_nume', 'opriri', 'created_at','nume_utilizator'  
         )
 
 route_schema = RouteSchema()
@@ -167,6 +169,7 @@ def add_route():
     
         route = Route(
             ziua = data['ziua'],
+            nume_utilizator = data['nume_utilizator'],
             data = datetime.datetime.strptime(data['data'], '%d.%m.%Y').date(),
             ora = datetime.datetime.strptime(data['ora'], '%H:%M').time(),
             locatie_start_lat = data['locatie_start']['lat'],
@@ -195,22 +198,24 @@ def get_routes():
 #salvare locuri vizitate
 class Locuri_Vizitate(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nume_utilizator = db.Column(db.String(255), nullable=False)
     data = db.Column(db.Date, nullable=False)
     lat = db.Column(db.Float, nullable=False, unique=True)
     lng = db.Column(db.Float, nullable=False, unique=True)
     nr_vizite = db.Column(db.Integer, default=1, nullable=False)
 
-    def __init__(self, data, lat, lng, nr_vizite=1):
+    def __init__(self, data, lat, lng, nr_vizite=1, nume_utilizator=None):
         self.data = data
         self.lat = lat
         self.lng = lng
         self.nr_vizite = nr_vizite
+        self.nume_utilizator = nume_utilizator
 
 
 class ViziteSchema(ma.Schema):
     class Meta:
         fields = (
-            'data', 'lat', 'lng', 'nr_vizite'
+            'data', 'lat', 'lng', 'nr_vizite', 'nume_utilizator'
         )
 
 
@@ -223,26 +228,43 @@ def add_vizite():
     data = request.json
     lat = data["lat"]
     lng = data["lng"]
+    nume_utilizator = data["nume_utilizator"]
     azi = datetime.date.today()
-        
-    locatie = Locuri_Vizitate.query.filter_by(lat=lat, lng=lng).first()
+    try:
+        # cauta daca locatia exista deja
+        locatie = Locuri_Vizitate.query.filter_by(lat=lat, lng=lng).first()
 
-    if locatie:
-        locatie.nr_vizite += 1
-        locatie.data = azi 
-        mesaj = "locatie actualizata"
-    else:
-        locatie = Locuri_Vizitate(lat=lat, lng=lng, nr_vizite=1, data=azi)
-        db.session.add(locatie)
-        mesaj = "locatie adaugata"
+        if locatie:
+            locatie.nr_vizite += 1
+            locatie.data = azi
+            locatie.nume_utilizator = nume_utilizator
+            mesaj = "Locație actualizată"
+        else:
+            locatie = Locuri_Vizitate(lat=lat, lng=lng, nr_vizite=1, data=azi,nume_utilizator=nume_utilizator)
+            db.session.add(locatie)
+            mesaj = "Locație adăugată"
 
-    db.session.commit()
-    return jsonify({"message": mesaj, "lat": lat, "lng": lng, "nr_vizite": locatie.nr_vizite})
+        db.session.commit()
+        return jsonify({
+            "message": mesaj,
+            "lat": lat,
+            "lng": lng,
+            "nr_vizite": locatie.nr_vizite,
+            "nume_utilizator": locatie.nume_utilizator
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/vizite', methods=['GET'])
 def get_vizite():
-    all_vizite = Locuri_Vizitate.query.all()
-    return vizite_schema.jsonify(all_vizite)
+    nume = request.args.get('nume_utilizator')
+    if nume:
+        vizite = Locuri_Vizitate.query.filter_by(nume_utilizator=nume).all()
+    else:
+        vizite = Locuri_Vizitate.query.all()
+    return vizite_schema.jsonify(vizite)
 
 
 
