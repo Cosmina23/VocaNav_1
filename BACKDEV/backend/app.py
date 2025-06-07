@@ -203,19 +203,21 @@ class Locuri_Vizitate(db.Model):
     lat = db.Column(db.Float, nullable=False, unique=True)
     lng = db.Column(db.Float, nullable=False, unique=True)
     nr_vizite = db.Column(db.Integer, default=1, nullable=False)
+    nume_loc = db.Column(db.String(255), nullable=True)
 
-    def __init__(self, data, lat, lng, nr_vizite=1, nume_utilizator=None):
+    def __init__(self, data, lat, lng, nr_vizite=1, nume_utilizator=None, nume_loc = None):
         self.data = data
         self.lat = lat
         self.lng = lng
         self.nr_vizite = nr_vizite
         self.nume_utilizator = nume_utilizator
+        self.nume_loc = nume_loc
 
 
 class ViziteSchema(ma.Schema):
     class Meta:
         fields = (
-            'data', 'lat', 'lng', 'nr_vizite', 'nume_utilizator'
+            'data', 'lat', 'lng', 'nr_vizite', 'nume_utilizator', 'nume_loc'
         )
 
 
@@ -229,6 +231,7 @@ def add_vizite():
     lat = data["lat"]
     lng = data["lng"]
     nume_utilizator = data["nume_utilizator"]
+    nume_loc = data.get("nume_loc")
     azi = datetime.date.today()
     try:
         # cauta daca locatia exista deja
@@ -239,8 +242,10 @@ def add_vizite():
             locatie.data = azi
             locatie.nume_utilizator = nume_utilizator
             mesaj = "Locație actualizată"
+            if nume_loc:
+                locatie.nume_loc = nume_loc
         else:
-            locatie = Locuri_Vizitate(lat=lat, lng=lng, nr_vizite=1, data=azi,nume_utilizator=nume_utilizator)
+            locatie = Locuri_Vizitate(lat=lat, lng=lng, nr_vizite=1, data=azi,nume_utilizator=nume_utilizator, nume_loc=nume_loc)
             db.session.add(locatie)
             mesaj = "Locație adăugată"
 
@@ -250,7 +255,8 @@ def add_vizite():
             "lat": lat,
             "lng": lng,
             "nr_vizite": locatie.nr_vizite,
-            "nume_utilizator": locatie.nume_utilizator
+            "nume_utilizator": locatie.nume_utilizator,
+            "nume_loc": locatie.nume_loc
         })
 
     except Exception as e:
