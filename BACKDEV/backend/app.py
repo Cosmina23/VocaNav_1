@@ -5,6 +5,7 @@ import pymysql
 from flask_marshmallow import Marshmallow
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import and_
 
  
 pymysql.install_as_MySQLdb()
@@ -197,22 +198,16 @@ def get_routes():
 
 #salvare locuri vizitate
 class Locuri_Vizitate(db.Model):
+    __tablename__ = "locuri_vizitate"
+    __table_args__ = (db.UniqueConstraint('lat', 'lng', name='unique_lat_lng'),)
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nume_utilizator = db.Column(db.String(255), nullable=False)
     data = db.Column(db.Date, nullable=False)
-    lat = db.Column(db.Float, nullable=False, unique=True)
-    lng = db.Column(db.Float, nullable=False, unique=True)
+    lat = db.Column(db.Float, nullable=False)
+    lng = db.Column(db.Float, nullable=False)
     nr_vizite = db.Column(db.Integer, default=1, nullable=False)
     nume_loc = db.Column(db.String(255), nullable=True)
-
-    def __init__(self, data, lat, lng, nr_vizite=1, nume_utilizator=None, nume_loc = None):
-        self.data = data
-        self.lat = lat
-        self.lng = lng
-        self.nr_vizite = nr_vizite
-        self.nume_utilizator = nume_utilizator
-        self.nume_loc = nume_loc
-
 
 class ViziteSchema(ma.Schema):
     class Meta:
@@ -224,28 +219,35 @@ class ViziteSchema(ma.Schema):
 vizita_schema = ViziteSchema()
 vizite_schema = ViziteSchema(many=True)
 
-
 @app.route('/add_vizite',  methods=['POST'])
 def add_vizite():
     data = request.json
-    lat = data["lat"]
-    lng = data["lng"]
+    lat = round(data["lat"], 6)
+    lng = round(data["lng"], 6)
     nume_utilizator = data["nume_utilizator"]
     nume_loc = data.get("nume_loc")
     azi = datetime.date.today()
+    
     try:
-        # cauta daca locatia exista deja
-        locatie = Locuri_Vizitate.query.filter_by(lat=lat, lng=lng).first()
+        locatie = Locuri_Vizitate.query.filter(
+            and_(
+                db.func.abs(Locuri_Vizitate.lat - lat) < 0.0001,
+                db.func.abs(Locuri_Vizitate.lng - lng) < 0.0001
+            )
+        ).first()
 
         if locatie:
             locatie.nr_vizite += 1
             locatie.data = azi
             locatie.nume_utilizator = nume_utilizator
-            mesaj = "Locație actualizată"
             if nume_loc:
                 locatie.nume_loc = nume_loc
+            mesaj = "Locație actualizată"
         else:
-            locatie = Locuri_Vizitate(lat=lat, lng=lng, nr_vizite=1, data=azi,nume_utilizator=nume_utilizator, nume_loc=nume_loc)
+            locatie = Locuri_Vizitate(
+                lat=lat, lng=lng, nr_vizite=1, data=azi,
+                nume_utilizator=nume_utilizator, nume_loc=nume_loc
+            )
             db.session.add(locatie)
             mesaj = "Locație adăugată"
 
